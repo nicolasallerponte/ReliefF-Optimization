@@ -1,0 +1,76 @@
+================================================================================
+EVALUACIÓN EN CorrAL-100 (John et al. 1994)
+Clase = (f1 AND f2) OR (f3 AND f4)
+================================================================================
+
+Dataset: 5000 muestras, 99 features
+
+Estructura:
+ • f0, f1, f2, f3: RELEVANTES (participan en AND/OR)
+ • f4: IRRELEVANTE
+ • f5: CORRELACIONADA (75% con clase)
+ • f6-f99: 93 features de ruido
+
+Distribución de clase: [2805 2195]
+Proporción de 1s: 43.90%
+
+Evaluando métodos...
+  ✓ ANN evaluado
+  ✓ Proto evaluado
+  ✓ ReliefF evaluado
+
+================================================================================
+RANKING DE FEATURES f0-f5 (posición de 1 a 100)
+================================================================================
+
+┌─────────────┬──────────────┬──────────────┬──────────────┐
+│ Feature     │ ANN          │ Proto        │ ReliefF      │
+├─────────────┼──────────────┼──────────────┼──────────────┤
+│ f0 (REL) │ ✓ Pos   2 │ ✓ Pos   3 │ ✓ Pos   3 │
+│ f1 (REL) │ ✓ Pos   4 │ ✓ Pos   2 │ ✓ Pos   2 │
+│ f2 (REL) │ ✓ Pos   3 │ ✓ Pos   5 │ ✓ Pos   5 │
+│ f3 (REL) │ ✓ Pos   5 │ ✓ Pos   4 │ ✓ Pos   4 │
+│ f4 (IRR) │ ✗ Pos  91 │ ✗ Pos  52 │ ✗ Pos  52 │
+│ f5 (COR) │ ✓ Pos   1 │ ✓ Pos   1 │ ✓ Pos   1 │
+└─────────────┴──────────────┴──────────────┴──────────────┘
+
+Leyenda:
+  REL = Relevante | IRR = Irrelevante | COR = Correlacionada
+  ✓ = Top 10 | ~ = Top 30 | ✗ = Fuera del top 30
+
+================================================================================
+IMPORTANCIAS (valores)
+================================================================================
+
+┌─────────────┬──────────────┬──────────────┬──────────────┐
+│ Feature     │ ANN          │ Proto        │ ReliefF      │
+├─────────────┼──────────────┼──────────────┼──────────────┤
+│ f0 (REL) │   0.228600   │   0.226455   │   0.193680   │
+│ f1 (REL) │   0.212900   │   0.258173   │   0.197560   │
+│ f2 (REL) │   0.213220   │   0.202269   │   0.188140   │
+│ f3 (REL) │   0.211800   │   0.206899   │   0.188900   │
+│ f4 (IRR) │   0.006020   │   0.010562   │  -0.000460   │
+│ f5 (COR) │   0.595980   │   0.717096   │   0.580780   │
+└─────────────┴──────────────┴──────────────┴──────────────┘
+
+================================================================================
+ANÁLISIS COMPARATIVO
+================================================================================
+
+ANN:
+  • Features relevantes en Top 10: 4/4
+  • Posición de f5 (correlacionada): 1
+  • Mejor relevante: f0 en posición 2
+  • Posiciones relevantes: f0:2 f1:4 f2:3 f3:5 
+
+Proto:
+  • Features relevantes en Top 10: 4/4
+  • Posición de f5 (correlacionada): 1
+  • Mejor relevante: f1 en posición 2
+  • Posiciones relevantes: f0:3 f1:2 f2:5 f3:4 
+
+ReliefF:
+  • Features relevantes en Top 10: 4/4
+  • Posición de f5 (correlacionada): 1
+  • Mejor relevante: f1 en posición 2
+  • Posiciones relevantes: f0:3 f1:2 f2:5 f3:4 
