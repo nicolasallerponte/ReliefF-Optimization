@@ -1,4 +1,6 @@
+# =============================================================================
 # Python
+# =============================================================================
 __pycache__/
 *.py[cod]
 *$py.class
@@ -20,45 +22,105 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual environments
+# =============================================================================
+# Entornos virtuales
+# =============================================================================
 .venv/
 venv/
 ENV/
 env/
 
-# uv
+# =============================================================================
+# uv / gestión de paquetes
+# =============================================================================
 .python-version
+# uv.lock se excluye: se regenera con `uv sync`
 uv.lock
 
-# Jupyter Notebook
-.ipynb_checkpoints
-*.ipynb_checkpoints/
+# =============================================================================
+# LaTeX — artefactos de compilación
+# =============================================================================
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.glg
+*.glo
+*.gls
+*.ist
+*.lof
+*.log
+*.lot
+*.nav
+*.out
+*.run.xml
+*.snm
+*.synctex.gz
+*.toc
+*.vrb
+*.xdv
+# PDF compilado (artefacto de build, se regenera con xelatex)
+report/*.pdf
 
-# IDEs
+# =============================================================================
+# Datos — ficheros pesados no versionables
+# =============================================================================
+data/raw/*.csv
+data/raw/*.parquet
+data/processed/*.pkl
+data/processed/*.npy
+
+# =============================================================================
+# Resultados de experimentos — se ignoran hasta que estén definitivos
+# Los resultados finales del TFG se añadirán manualmente con git add -f
+# =============================================================================
+experimentos/results/
+experimentos/figuras/
+experimentos/tablas/
+results/
+
+# =============================================================================
+# Numba JIT cache
+# =============================================================================
+__numba_cache__/
+numba_cache/
+
+# =============================================================================
+# Documentos personales / sensibles
+# =============================================================================
+docs/matricula.pdf
+docs/informe_actividad.pdf
+# PDFs externos en bibliorafia (copyrighted o personales)
+bibliorafia/*.pdf
+
+# =============================================================================
+# IDEs y editores
+# =============================================================================
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-
-# Data
-data/raw/*.csv
-data/raw/*.parquet
-data/processed/*.pkl
-
-# Results
-results/models/*.pkl
-results/models/*.joblib
-results/logs/*.log
-
-# OS
 .DS_Store
 Thumbs.db
 
-# Testing
+# =============================================================================
+# Testing y cobertura
+# =============================================================================
 .coverage
 htmlcov/
 .pytest_cache/
 
-# Documentation
+# =============================================================================
+# Jupyter
+# =============================================================================
+.ipynb_checkpoints/
+*.ipynb_checkpoints/
+
+# =============================================================================
+# Miscelánea
+# =============================================================================
 docs/_build/
+*.log

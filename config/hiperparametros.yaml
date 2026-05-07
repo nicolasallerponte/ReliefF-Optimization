@@ -1,0 +1,30 @@
+# Hiperparámetros del TFG - ReliefF Optimization
+# Valores obtenidos mediante grid search exhaustivo (ver experimento 01).
+
+ann:
+  n_neighbors:      15       # k adaptativo: 15 / (1 + ratio * 5.0), clip [5,15]
+  iter_ratio:       auto     # fracción de muestras query: auto=adaptativo según N
+  metric:           euclidean
+  M:                16       # HNSW: conexiones por nodo
+  ef_construction:  200      # HNSW: tamaño de cola de construcción
+  n_features_to_select: 10
+
+proto:
+  k_prototipos:     10       # prototipos por clase (adaptativo según tamaño mínimo de clase)
+  sigma:            0.15     # controla clusters: adaptativo si usa default 0.15
+  usar_lvq:         false    # LVQ empeora ligeramente en los experimentos
+  metric:           euclidean
+  tipo_escalado:    robust
+  n_features_to_select: 10
+
+relieff:
+  n_neighbors:      10       # default de skrebate
+  n_features_to_select: 10
+
+experimento:
+  semillas:         [42, 123, 456, 789, 1234]
+  n_features_seleccionadas: 10
+  cv_pliegues:      5        # 5-fold stratified cross-validation
+  clasificador:     random_forest
+  rf_n_estimators:  100
+  rf_max_depth:     10
