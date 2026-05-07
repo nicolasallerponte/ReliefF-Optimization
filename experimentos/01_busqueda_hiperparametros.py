@@ -72,16 +72,16 @@ N_PLIEGUES = CFG['experimento']['cv_pliegues']
 # no está soportada por hnswlib — intentar usarla provoca un fallback silencioso
 # a sklearn brute-force, lo que invalida la comparación de backends.
 #
-# n_neighbors es un parámetro compartido de ReliefF, fijado como constante
-# global (N_NEIGHBORS_GLOBAL) igual para ANN, Proto y ReliefF en todos los
-# experimentos. Optimizarlo solo para ANN rompería la comparabilidad entre
-# algoritmos. El grid cubre únicamente los parámetros propios de HNSW:
+# n_neighbors es un parámetro compartido de ReliefF (número de vecinos usados
+# en el scoring). Se optimiza aquí para ANN y el valor óptimo resultante se
+# usa como constante global en TODOS los experimentos de comparación (ANN,
+# ReliefF y Proto), garantizando igualdad de condiciones entre algoritmos.
+# El grid también cubre los parámetros propios de HNSW:
 #   M              : conectividad del grafo (calidad de construcción)
 #   ef_construction: amplitud del beam en construcción (calidad vs tiempo build)
 #   ef_search      : amplitud del beam en búsqueda   (calidad vs tiempo query)
-N_NEIGHBORS_GLOBAL = 10   # alineado con skrebate ReliefF y resto de experimentos
-
 REJILLA_ANN = {
+    'n_neighbors':     [5, 10, 15, 20],
     'M':               [8, 16, 32],
     'ef_construction': [100, 200],
     'ef_search':       [50, 200],
@@ -142,25 +142,27 @@ def evaluar_configuracion(selector, X, y, semilla):
 # ---------------------------------------------------------------------------
 
 def busqueda_ann(datasets):
-    n_combos = (len(REJILLA_ANN['M']) *
+    n_combos = (len(REJILLA_ANN['n_neighbors']) *
+                len(REJILLA_ANN['M']) *
                 len(REJILLA_ANN['ef_construction']) *
                 len(REJILLA_ANN['ef_search']))
-    logger.info("Grid search ANN - %d configuraciones × %d datasets × %d semillas "
-                "(n_neighbors=%d fijo)", n_combos, len(datasets), len(SEMILLAS), N_NEIGHBORS_GLOBAL)
+    logger.info("Grid search ANN - %d configuraciones × %d datasets × %d semillas",
+                n_combos, len(datasets), len(SEMILLAS))
     filas = []
     combos = list(product(
+        REJILLA_ANN['n_neighbors'],
         REJILLA_ANN['M'],
         REJILLA_ANN['ef_construction'],
         REJILLA_ANN['ef_search'],
     ))
-    for m, ef_c, ef_s in combos:
+    for k, m, ef_c, ef_s in combos:
         f1s_ds, tiempos_ds = {}, {}
         for nombre, (X, y, _) in datasets.items():
             n_sel = min(CFG['ann']['n_features_to_select'], X.shape[1])
             f1s, ts = [], []
             for semilla in SEMILLAS:
                 selector = ANN(
-                    n_neighbors=N_NEIGHBORS_GLOBAL,
+                    n_neighbors=k,
                     M=m,
                     ef_construction=ef_c,
                     ef_search=ef_s,
@@ -176,6 +178,7 @@ def busqueda_ann(datasets):
         f1_medio     = float(np.mean(list(f1s_ds.values())))
         tiempo_medio = float(np.mean(list(tiempos_ds.values())))
         fila = {
+            'n_neighbors':     k,
             'M':               m,
             'ef_construction': ef_c,
             'ef_search':       ef_s,
@@ -185,8 +188,8 @@ def busqueda_ann(datasets):
         }
         fila.update({f'f1_{ds}': round(v, 4) for ds, v in f1s_ds.items()})
         filas.append(fila)
-        logger.info("  ANN M=%d ef_c=%d ef_s=%d → f1=%.4f  t=%.3fs",
-                    m, ef_c, ef_s, f1_medio, tiempo_medio)
+        logger.info("  ANN k=%d M=%d ef_c=%d ef_s=%d → f1=%.4f  t=%.3fs",
+                    k, m, ef_c, ef_s, f1_medio, tiempo_medio)
 
     df = pd.DataFrame(filas).sort_values('f1_medio', ascending=False).reset_index(drop=True)
     return df
@@ -281,9 +284,9 @@ def graficar_heatmaps_ann(df):
         vmax = df[metrica].max()
         for ax, ef_c in zip(axes, ef_vals):
             sub = df[df['ef_construction'] == ef_c].copy()
-            # Agrega sobre ef_search tomando la media
-            pivote = sub.groupby(['ef_search', 'M'])[metrica].mean().reset_index()
-            pivote = pivote.pivot(index='ef_search', columns='M', values=metrica)
+            # Agrega sobre ef_search y M tomando la media, muestra n_neighbors × M
+            pivote = sub.groupby(['n_neighbors', 'M'])[metrica].mean().reset_index()
+            pivote = pivote.pivot(index='n_neighbors', columns='M', values=metrica)
             sns.heatmap(
                 pivote, annot=True,
                 fmt='.4f' if 'f1' in metrica else '.3f',
@@ -293,8 +296,8 @@ def graficar_heatmaps_ann(df):
             )
             ax.set_title(f'ef_construction = {ef_c}', pad=8)
             ax.set_xlabel('M (conectividad HNSW)')
-            ax.set_ylabel('ef_search')
-        fig.suptitle(f'Grid Search ANN — {titulo_met} (n_neighbors={N_NEIGHBORS_GLOBAL} fijo, 12 datasets, 5 semillas)',
+            ax.set_ylabel('n_neighbors')
+        fig.suptitle(f'Grid Search ANN — {titulo_met} (media sobre ef_search, 12 datasets, 5 semillas)',
                      y=1.02)
         fig.tight_layout()
         nombre_fig = 'heatmap_ann_f1' if 'f1' in metrica else 'heatmap_ann_tiempo'
@@ -330,8 +333,8 @@ def graficar_pareto_ann(df):
     # Etiqueta de la config con mejor F1/tiempo
     mejor = df.loc[df['f1_por_tiempo'].idxmax()]
     ax.annotate(
-        f"M={int(mejor['M'])}, ef_c={int(mejor['ef_construction'])}\n"
-        f"ef_s={int(mejor['ef_search'])}",
+        f"k={int(mejor['n_neighbors'])}, M={int(mejor['M'])}\n"
+        f"ef_c={int(mejor['ef_construction'])}, ef_s={int(mejor['ef_search'])}",
         xy=(mejor['tiempo_medio_s'], mejor['f1_medio']),
         xytext=(10, -25), textcoords='offset points',
         fontsize=8, color=COLORES['ANN'],
@@ -431,15 +434,18 @@ if __name__ == '__main__':
     logger.info("Experimento 01 completado en %.1f min", (time.time() - t0) / 60)
 
     mejor_ann = df_ann.iloc[0]
-    logger.info("Mejor ANN (F1):         M=%d ef_c=%d ef_s=%d → f1=%.4f  t=%.3fs",
-                mejor_ann['M'], mejor_ann['ef_construction'], mejor_ann['ef_search'],
+    logger.info("Mejor ANN (F1):         k=%d M=%d ef_c=%d ef_s=%d → f1=%.4f  t=%.3fs",
+                mejor_ann['n_neighbors'], mejor_ann['M'],
+                mejor_ann['ef_construction'], mejor_ann['ef_search'],
                 mejor_ann['f1_medio'], mejor_ann['tiempo_medio_s'])
+    logger.info(">>> n_neighbors óptimo = %d — usar como constante global en exp 02–12",
+                mejor_ann['n_neighbors'])
 
     pareto_ann = df_ann[_pareto_mask(df_ann['f1_medio'].values, df_ann['tiempo_medio_s'].values)]
     mejor_pareto_ann = pareto_ann.loc[pareto_ann['f1_por_tiempo'].idxmax()]
-    logger.info("Mejor ANN (Pareto F1/t): M=%d ef_c=%d ef_s=%d → f1=%.4f  t=%.3fs",
-                mejor_pareto_ann['M'], mejor_pareto_ann['ef_construction'],
-                mejor_pareto_ann['ef_search'],
+    logger.info("Mejor ANN (Pareto F1/t): k=%d M=%d ef_c=%d ef_s=%d → f1=%.4f  t=%.3fs",
+                mejor_pareto_ann['n_neighbors'], mejor_pareto_ann['M'],
+                mejor_pareto_ann['ef_construction'], mejor_pareto_ann['ef_search'],
                 mejor_pareto_ann['f1_medio'], mejor_pareto_ann['tiempo_medio_s'])
 
     mejor_proto = df_proto.iloc[0]
