@@ -18,8 +18,8 @@ echo "TFG: Optimización de ReliefF - Cátedra Inditex-UDC"
 echo "Autor: Nicolás Aller Ponte"
 echo "============================================================"
 echo ""
-echo "Duración estimada: ~120 minutos"
-echo "Experimentos: 01 al 11 en secuencia"
+echo "Duración estimada: ~150 minutos"
+echo "Experimentos: 01 al 12 en secuencia"
 echo ""
 read -p "Pulsa ENTER para comenzar o Ctrl+C para cancelar... "
 echo ""
@@ -69,8 +69,11 @@ ejecutar "09/11" "experimentos/09_estabilidad_seleccion.py" \
 ejecutar "10/11" "experimentos/10_sensibilidad_k.py" \
     "Sensibilidad al número de features seleccionadas (k)"
 
-ejecutar "11/11" "experimentos/11_crossover_hnsw_exacto.py" \
+ejecutar "11/12" "experimentos/11_crossover_hnsw_exacto.py" \
     "Crossover HNSW vs búsqueda exacta - validación de la aproximación"
+
+ejecutar "12/12" "experimentos/12_validacion_adaptativo.py" \
+    "Validación de fórmulas adaptativas - k (ANN) y sigma (Proto)"
 
 FIN=$(date +%s)
 MINUTOS=$(( (FIN - INICIO) / 60 ))
