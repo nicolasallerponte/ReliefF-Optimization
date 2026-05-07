@@ -224,8 +224,11 @@ class ANN(BaseEstimator, TransformerMixin):
         max_vecs = min(len(clases) * k, n - 1)
         vecinos  = np.full((n_iter, max_vecs), -1, dtype=np.int32)
 
-        espacio_hnsw = 'l2' if self.metric in ('euclidean', 'l2') else 'l1'
-        sklearn_p    = 2    if self.metric in ('euclidean', 'l2') else 1
+        # hnswlib solo soporta 'l2', 'ip' y 'cosine'; 'l1' no existe.
+        # Manhattan fuerza sklearn brute-force explícitamente.
+        hnsw_compatible = self.metric in ('euclidean', 'l2')
+        usar_hnsw = usar_hnsw and hnsw_compatible
+        sklearn_p = 2 if hnsw_compatible else 1
 
         indices_por_clase = {}
         for c in clases:
@@ -235,7 +238,7 @@ class ANN(BaseEstimator, TransformerMixin):
 
             if usar_hnsw:
                 try:
-                    indice = hnswlib.Index(space=espacio_hnsw, dim=d)
+                    indice = hnswlib.Index(space='l2', dim=d)
                     indice.init_index(
                         max_elements=len(idx_c),
                         ef_construction=ef_param,

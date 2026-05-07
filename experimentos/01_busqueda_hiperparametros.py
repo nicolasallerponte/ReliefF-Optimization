@@ -60,9 +60,13 @@ N_PLIEGUES = CFG['experimento']['cv_pliegues']
 # Rejillas de búsqueda
 # ---------------------------------------------------------------------------
 
+# ANN emplea distancia euclidiana (L2) dado que hnswlib, la implementación de
+# referencia de HNSW, opera nativamente en este espacio métrico. Manhattan (L1)
+# no está soportada por hnswlib — intentar usarla provoca un fallback silencioso
+# a sklearn brute-force, lo que invalida la comparación de backends.
 REJILLA_ANN = {
     'n_neighbors': [5, 10, 15, 20],
-    'metric':      ['euclidean', 'manhattan'],
+    'metric':      ['euclidean'],
 }
 
 REJILLA_PROTO = {
