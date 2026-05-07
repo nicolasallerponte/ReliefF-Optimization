@@ -108,6 +108,7 @@ class ANN(BaseEstimator, TransformerMixin):
         M=16,
         ef_construction=200,
         ef_search=-1,
+        force_exact=False,
     ):
         self.n_neighbors = n_neighbors
         self.n_features_to_select = n_features_to_select
@@ -121,6 +122,7 @@ class ANN(BaseEstimator, TransformerMixin):
         self.M = M
         self.ef_construction = ef_construction
         self.ef_search = ef_search
+        self.force_exact = force_exact
         self.feature_importances_ = None
 
     # ------------------------------------------------------------------
@@ -162,14 +164,16 @@ class ANN(BaseEstimator, TransformerMixin):
         else:
             ratio_iter = self.iter_ratio
 
-        usar_hnsw = n >= 10000
+        usar_hnsw = not self.force_exact
         if usar_hnsw:
             if n >= 100000:
                 M_final, ef_final = 32, 200
             elif n >= 50000:
                 M_final, ef_final = 24, 150
-            else:
+            elif n >= 10000:
                 M_final, ef_final = 16, 100
+            else:
+                M_final, ef_final = 16, 200
         else:
             M_final, ef_final = 16, 200
 
