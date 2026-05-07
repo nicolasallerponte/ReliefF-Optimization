@@ -64,9 +64,12 @@ N_PLIEGUES = CFG['experimento']['cv_pliegues']
 # referencia de HNSW, opera nativamente en este espacio métrico. Manhattan (L1)
 # no está soportada por hnswlib — intentar usarla provoca un fallback silencioso
 # a sklearn brute-force, lo que invalida la comparación de backends.
+# El grid incluye M y ef_construction, parámetros propios de HNSW que controlan
+# la calidad del grafo de navegación y el equilibrio calidad/velocidad.
 REJILLA_ANN = {
-    'n_neighbors': [5, 10, 15, 20],
-    'metric':      ['euclidean'],
+    'n_neighbors':     [5, 10, 15, 20],
+    'M':               [8, 16, 32],
+    'ef_construction': [100, 200],
 }
 
 REJILLA_PROTO = {
@@ -111,12 +114,18 @@ def evaluar_configuracion(selector, X, y, semilla):
 # ---------------------------------------------------------------------------
 
 def busqueda_ann(datasets):
+    n_combos = (len(REJILLA_ANN['n_neighbors']) *
+                len(REJILLA_ANN['M']) *
+                len(REJILLA_ANN['ef_construction']))
     logger.info("Grid search ANN - %d configuraciones × %d datasets × %d semillas",
-                len(REJILLA_ANN['n_neighbors']) * len(REJILLA_ANN['metric']),
-                len(datasets), len(SEMILLAS))
+                n_combos, len(datasets), len(SEMILLAS))
     filas = []
-    combos = list(product(REJILLA_ANN['n_neighbors'], REJILLA_ANN['metric']))
-    for n_vecs, metrica in combos:
+    combos = list(product(
+        REJILLA_ANN['n_neighbors'],
+        REJILLA_ANN['M'],
+        REJILLA_ANN['ef_construction'],
+    ))
+    for n_vecs, m, ef in combos:
         f1_por_dataset = {}
         for nombre, (X, y, _) in datasets.items():
             n_sel = min(CFG['ann']['n_features_to_select'], X.shape[1])
@@ -124,20 +133,22 @@ def busqueda_ann(datasets):
             for semilla in SEMILLAS:
                 selector = ANN(
                     n_neighbors=n_vecs,
-                    metric=metrica,
+                    M=m,
+                    ef_construction=ef,
                     n_features_to_select=n_sel,
                     random_state=semilla,
                 )
                 f1s.append(evaluar_configuracion(selector, X, y, semilla))
             f1_por_dataset[nombre] = float(np.mean(f1s))
         fila = {
-            'n_neighbors': n_vecs,
-            'metric':      metrica,
-            'f1_medio':    float(np.mean(list(f1_por_dataset.values()))),
+            'n_neighbors':     n_vecs,
+            'M':               m,
+            'ef_construction': ef,
+            'f1_medio':        float(np.mean(list(f1_por_dataset.values()))),
         }
         fila.update({f'f1_{ds}': v for ds, v in f1_por_dataset.items()})
         filas.append(fila)
-        logger.info("  ANN n_vecs=%d metric=%s → f1_medio=%.4f", n_vecs, metrica, fila['f1_medio'])
+        logger.info("  ANN k=%d M=%d ef=%d → f1_medio=%.4f", n_vecs, m, ef, fila['f1_medio'])
 
     return pd.DataFrame(filas).sort_values('f1_medio', ascending=False).reset_index(drop=True)
 
@@ -186,15 +197,26 @@ def busqueda_proto(datasets):
 # ---------------------------------------------------------------------------
 
 def graficar_heatmap_ann(df):
-    pivote = df.pivot(index='n_neighbors', columns='metric', values='f1_medio')
-    fig, ax = nueva_figura()
-    sns.heatmap(
-        pivote, annot=True, fmt='.4f', cmap='Blues',
-        linewidths=0.5, ax=ax, cbar_kws={'label': 'F1 medio'},
-    )
-    ax.set_title('Grid Search ANN - F1 medio (12 datasets, 5 semillas)', pad=10)
-    ax.set_xlabel('Métrica de distancia')
-    ax.set_ylabel('n_neighbors')
+    """Un heatmap n_neighbors × M por cada valor de ef_construction."""
+    ef_vals = sorted(df['ef_construction'].unique())
+    fig, axes = nueva_figura(1, len(ef_vals), tamano=(7 * len(ef_vals), 4.5))
+    if len(ef_vals) == 1:
+        axes = [axes]
+    vmin = df['f1_medio'].min()
+    vmax = df['f1_medio'].max()
+    for ax, ef in zip(axes, ef_vals):
+        sub = df[df['ef_construction'] == ef]
+        pivote = sub.pivot_table(index='n_neighbors', columns='M', values='f1_medio')
+        sns.heatmap(
+            pivote, annot=True, fmt='.4f', cmap='Blues',
+            linewidths=0.5, ax=ax, vmin=vmin, vmax=vmax,
+            cbar_kws={'label': 'F1 medio'},
+        )
+        ax.set_title(f'ef_construction = {ef}', pad=8)
+        ax.set_xlabel('M (conectividad HNSW)')
+        ax.set_ylabel('n_neighbors')
+    fig.suptitle('Grid Search ANN — F1 medio (12 datasets, 5 semillas)', y=1.02)
+    fig.tight_layout()
     guardar_figura(fig, 'heatmap_ann', FIG_DIR)
 
 
