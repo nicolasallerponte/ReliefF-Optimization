@@ -1,30 +1,34 @@
 # Hiperparámetros del TFG - ReliefF Optimization
-# Valores obtenidos mediante grid search exhaustivo (ver experimento 01).
+# Valores obtenidos mediante grid search exhaustivo (experimento 01).
+# Grid ANN: n_neighbors×M×ef_construction×ef_search (48 combos, 12 datasets, 5 semillas)
+# Grid Proto: k_protos×sigma×use_lvq (32 combos, 12 datasets, 5 semillas)
 
 ann:
-  n_neighbors:      15       # k adaptativo: 15 / (1 + ratio * 5.0), clip [5,15]
+  n_neighbors:      10       # constante global compartida con ReliefF; k=20 maximiza F1
+                             # pero k=10 es el codo coste/beneficio y es el default de skrebate
   iter_ratio:       auto     # fracción de muestras query: auto=adaptativo según N
   metric:           euclidean
-  M:                16       # HNSW: conexiones por nodo
-  ef_construction:  200      # HNSW: tamaño de cola de construcción
+  M:                8        # HNSW: M y ef_construction son irrelevantes para F1 en estos
+  ef_construction:  100      # datasets — se elige el valor más ligero (Pareto-óptimo)
+  ef_search:        50       # ef_search=50 igual F1 que ef_search=200 con 42% menos tiempo
   n_features_to_select: 10
 
 proto:
-  k_prototipos:     10       # prototipos por clase (adaptativo según tamaño mínimo de clase)
-  sigma:            0.15     # controla clusters: adaptativo si usa default 0.15
-  usar_lvq:         false    # LVQ empeora ligeramente en los experimentos
+  k_protos:         15       # k=15 mejor F1; diferencia vs k=10 mínima (0.0008)
+  sigma:            0.15     # activa la fórmula adaptativa; mejor valor en el grid
+  use_lvq:          false    # LVQ +0.0004 F1 con +20% tiempo — no justificado
   metric:           euclidean
-  tipo_escalado:    robust
+  scaler_type:      robust
   n_features_to_select: 10
 
 relieff:
-  n_neighbors:      10       # default de skrebate
+  n_neighbors:      10       # igual que ANN para comparación justa
   n_features_to_select: 10
 
 experimento:
   semillas:         [42, 123, 456, 789, 1234]
   n_features_seleccionadas: 10
-  cv_pliegues:      5        # 5-fold stratified cross-validation
+  cv_pliegues:      5
   clasificador:     random_forest
   rf_n_estimators:  100
   rf_max_depth:     10
