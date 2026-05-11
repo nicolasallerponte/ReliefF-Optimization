@@ -13,21 +13,33 @@ import matplotlib as mpl
 # ---------------------------------------------------------------------------
 
 COLORES = {
-    'ANN':     '#3498db',   # azul
-    'Proto':   '#e74c3c',   # rojo
-    'ReliefF': '#2ecc71',   # verde (baseline)
+    'ANN':          '#3498db',   # azul
+    'Proto':        '#e74c3c',   # rojo
+    'ReliefF':      '#2ecc71',   # verde (baseline)
+    'MultiSURF':    '#9b59b6',   # morado
+    'ANN_exacto':   '#a9cce3',   # azul claro (solo Numba JIT)
+    'ANN_hnsw':     '#2980b9',   # azul medio (Numba + HNSW)
+    'ANN_completo': '#1a5276',   # azul oscuro (Numba + HNSW + subsampling)
 }
 
 MARCADORES = {
-    'ANN':     'o',
-    'Proto':   's',
-    'ReliefF': '^',
+    'ANN':          'o',
+    'Proto':        's',
+    'ReliefF':      '^',
+    'MultiSURF':    'D',
+    'ANN_exacto':   'o',
+    'ANN_hnsw':     'o',
+    'ANN_completo': 'o',
 }
 
 ESTILOS_LINEA = {
-    'ANN':     '-',
-    'Proto':   '--',
-    'ReliefF': ':',
+    'ANN':          '-',
+    'Proto':        '--',
+    'ReliefF':      ':',
+    'MultiSURF':    '-.',
+    'ANN_exacto':   ':',
+    'ANN_hnsw':     '--',
+    'ANN_completo': '-',
 }
 
 GROSOR_LINEA = 2.0

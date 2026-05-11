@@ -1,20 +1,22 @@
 """
 Experimento 09 - Estabilidad de la selección de características.
 
-Pregunta: ¿Seleccionan siempre los mismos algoritmos los mismos atributos
-en ejecuciones distintas? ¿Cuál es el más estable?
+Pregunta: ¿Seleccionan los algoritmos las mismas features cuando el dataset
+varía ligeramente? ¿Cuál es el más estable ante perturbaciones de los datos?
 
-Método: Índice de Consistencia de Kuncheva (KCI) calculado sobre los conjuntos
-de features seleccionadas en 5 semillas distintas.
+Método: Índice de Consistencia de Kuncheva (KCI) calculado sobre 10 subconjuntos
+bootstrap (80% de n sin reemplazamiento). Esta métrica mide estabilidad ante
+perturbación de los datos de entrenamiento — que es lo que importa en uso real.
 
-  KCI = 1  → selección idéntica en todas las ejecuciones
+  KCI = 1  → selección idéntica en todos los bootstraps
   KCI = 0  → estabilidad equivalente a selección aleatoria
   KCI < 0  → peor que el azar (inestabilidad)
 
-Además se genera un heatmap de frecuencia de selección por feature para
-visualizar cuáles son más robustamente seleccionadas.
+Métrica adicional — precisión robusta al 80%: fracción de features relevantes
+conocidas que aparecen en ≥80% de los bootstraps.
 
-Se evalúa en todos los datasets con ground truth conocido (sintéticos).
+Nota: se excluyen datasets donde n_sel ≥ n_features (XOR, Moons, Circles)
+porque KCI no está definido en ese caso.
 
 Salidas:
   results/tablas/09_estabilidad_seleccion/kci.csv
@@ -56,12 +58,15 @@ with open(CFG_PATH) as f:
 FIG_DIR = 'figuras/09_estabilidad_seleccion'
 TAB_DIR = 'tablas/09_estabilidad_seleccion'
 
-SEMILLAS   = CFG['experimento']['semillas']
-N_SEL      = CFG['experimento']['n_features_seleccionadas']
-ALGORITMOS = ['ReliefF', 'ANN', 'Proto']
+N_SEL        = CFG['experimento']['n_features_seleccionadas']
+ALGORITMOS   = ['ReliefF', 'ANN', 'Proto']
+N_BOOTSTRAP  = 10
+FRAC_BOOTSTRAP = 0.80
 
-# Solo datasets con ground truth (sintéticos)
-DATASETS_SINTETICOS = [n for n, m in CATALOGO.items() if m.get('relevantes') is not None]
+# Excluir datasets donde n_features <= N_SEL (KCI indefinido: k >= n)
+DATASETS_VALIDOS = [
+    'Corral', 'CorrAL100', 'AltaDim', 'Desbalanceado', 'Ruidoso', 'Grande',
+]
 
 
 # ---------------------------------------------------------------------------
@@ -71,70 +76,90 @@ DATASETS_SINTETICOS = [n for n, m in CATALOGO.items() if m.get('relevantes') is 
 def seleccionar(algoritmo, X, y, semilla):
     n_sel = min(N_SEL, X.shape[1])
     if algoritmo == 'ReliefF':
-        sel = ReliefF(n_features_to_select=n_sel, n_neighbors=10)
+        sel = ReliefF(n_features_to_select=n_sel, n_neighbors=CFG['relieff']['n_neighbors'])
     elif algoritmo == 'ANN':
-        sel = ANN(n_features_to_select=n_sel, random_state=semilla)
+        sel = ANN(
+            n_features_to_select=n_sel,
+            n_neighbors=CFG['ann']['n_neighbors'],
+            metric=CFG['ann']['metric'],
+            M=CFG['ann']['M'],
+            ef_construction=CFG['ann']['ef_construction'],
+            ef_search=CFG['ann']['ef_search'],
+            random_state=semilla,
+        )
     else:
-        sel = Proto(n_features_to_select=n_sel, n_jobs=1)
+        sel = Proto(
+            n_features_to_select=n_sel,
+            k_protos=CFG['proto']['k_protos'],
+            sigma=CFG['proto']['sigma'],
+            use_lvq=CFG['proto']['use_lvq'],
+            metric=CFG['proto']['metric'],
+            n_jobs=1,
+        )
     sel.fit(X, y)
     ranking = sel.rank() if hasattr(sel, 'rank') else np.argsort(-sel.feature_importances_)
     return list(ranking[:n_sel])
 
 
 # ---------------------------------------------------------------------------
-# Experimento
+# Experimento con bootstrap
 # ---------------------------------------------------------------------------
 
 def ejecutar():
     filas = []
-    heatmaps = {}   # {(dataset, algoritmo): matriz de frecuencia}
+    heatmaps = {}
+    rng = np.random.RandomState(42)
 
-    for nombre in DATASETS_SINTETICOS:
+    for nombre in DATASETS_VALIDOS:
         meta = CATALOGO[nombre]
         logger.info("Dataset: %s", nombre)
-
-        # Usamos semilla base para obtener dimensiones del dataset
-        X_ref, y_ref, relevantes = obtener_dataset(nombre, semilla=SEMILLAS[0])
+        X_ref, y_ref, relevantes = obtener_dataset(nombre, semilla=42)
+        n = len(X_ref)
         n_total = X_ref.shape[1]
-        n_sel   = min(N_SEL, n_total)
+        n_sel = min(N_SEL, n_total)
+
+        # Generar índices bootstrap — iguales para todos los algoritmos (comparación justa)
+        n_boot = int(n * FRAC_BOOTSTRAP)
+        bootstrap_idxs  = [rng.choice(n, n_boot, replace=False) for _ in range(N_BOOTSTRAP)]
+        bootstrap_seeds = [int(rng.randint(0, 10000))            for _ in range(N_BOOTSTRAP)]
 
         for alg in ALGORITMOS:
-            subsets = []
+            subsets    = []
             frecuencia = np.zeros(n_total, dtype=int)
 
-            for semilla in SEMILLAS:
-                X, y, _ = obtener_dataset(nombre, semilla=semilla)
+            for idx, seed_b in zip(bootstrap_idxs, bootstrap_seeds):
+                Xb, yb = X_ref[idx], y_ref[idx]
                 try:
-                    subset = seleccionar(alg, X, y, semilla)
+                    subset = seleccionar(alg, Xb, yb, seed_b)
                     subsets.append(subset)
                     frecuencia[subset] += 1
                 except Exception as e:
-                    logger.warning("  Error %s %s semilla=%d: %s", alg, nombre, semilla, e)
+                    logger.warning("  Error %s %s: %s", alg, nombre, e)
 
             if len(subsets) < 2:
                 continue
 
             kci = kuncheva_index(subsets, n_total, n_sel)
-            heatmaps[(nombre, alg)] = frecuencia / len(subsets)   # frecuencia relativa [0,1]
+            heatmaps[(nombre, alg)] = frecuencia / len(subsets)
 
-            # Precisión de relevantes: cuántas de las features relevantes aparecen en TODOS los subsets
             if relevantes:
-                precision_todos = sum(
-                    1 for r in relevantes if all(r in s for s in subsets)
+                umbral = 0.8
+                precision_robusta = sum(
+                    1 for r in relevantes
+                    if frecuencia[r] / len(subsets) >= umbral
                 ) / len(relevantes)
             else:
-                precision_todos = float('nan')
+                precision_robusta = float('nan')
 
             filas.append({
-                'dataset':          nombre,
-                'algoritmo':        alg,
-                'n_total_features': n_total,
-                'n_seleccionadas':  n_sel,
-                'kci':              round(kci, 4),
-                'precision_siempre_relevantes': round(precision_todos, 4),
+                'dataset':               nombre,
+                'algoritmo':             alg,
+                'n_total_features':      n_total,
+                'n_seleccionadas':       n_sel,
+                'kci':                   round(kci, 4),
+                'precision_robusta_80pct': round(precision_robusta, 4),
             })
-            logger.info("  %s KCI=%.3f  siempre_relevantes=%.2f",
-                        alg, kci, precision_todos)
+            logger.info("  %s  KCI=%.3f  precision_robusta=%.2f", alg, kci, precision_robusta)
 
     df = pd.DataFrame(filas)
     guardar_tabla(df, 'kci', TAB_DIR)
@@ -161,7 +186,9 @@ def graficar_kci(df):
     ax.set_xticks(x)
     ax.set_xticklabels(datasets, rotation=30, ha='right')
     ax.set_ylabel('Índice de Kuncheva (KCI)')
-    ax.set_title('Estabilidad de la selección de características\n(KCI, 5 semillas; 1=perfecta estabilidad, 0=aleatoria)')
+    ax.set_title('Estabilidad ante perturbación de datos (bootstrap)\n'
+                 f'(KCI, {N_BOOTSTRAP} bootstraps al {int(FRAC_BOOTSTRAP*100)}%; '
+                 '1=perfecta estabilidad, 0=aleatoria)')
     ax.set_ylim(-0.2, 1.1)
     ax.legend()
     guardar_figura(fig, 'kci_barplot', FIG_DIR)
@@ -173,20 +200,18 @@ def graficar_heatmaps(heatmaps, n_mostrar=15):
     datasets_unicos = sorted({k[0] for k in heatmaps})
 
     for nombre in datasets_unicos:
-        _, relevantes = CATALOGO[nombre].get('relevantes', None), CATALOGO[nombre].get('relevantes')
+        relevantes = CATALOGO[nombre].get('relevantes')
 
         datos = []
         for alg in ALGORITMOS:
             if (nombre, alg) in heatmaps:
                 freq = heatmaps[(nombre, alg)]
-                # Mostrar solo las n_mostrar features más frecuentemente seleccionadas
                 top_idx = np.argsort(-freq)[:n_mostrar]
                 datos.append({'algoritmo': alg, 'indices': top_idx, 'freq': freq})
 
         if not datos:
             continue
 
-        # Unión de features más frecuentes
         todos_top = np.unique(np.concatenate([d['indices'] for d in datos]))[:n_mostrar]
         matriz = np.zeros((len(ALGORITMOS), len(todos_top)))
 
@@ -211,9 +236,9 @@ def graficar_heatmaps(heatmaps, n_mostrar=15):
             vmin=0, vmax=1,
             linewidths=0.5,
             annot=True, fmt='.2f',
-            cbar_kws={'label': 'Frecuencia de selección (5 semillas)'},
+            cbar_kws={'label': f'Frecuencia de selección ({N_BOOTSTRAP} bootstraps)'},
         )
-        ax.set_title(f'Frecuencia de selección - {nombre}\n(★ = feature relevante conocida)')
+        ax.set_title(f'Frecuencia de selección — {nombre}\n(★ = feature relevante conocida)')
         ax.tick_params(axis='x', labelsize=8)
         fig.tight_layout()
         guardar_figura(fig, f'heatmap_{nombre.lower()}', FIG_DIR)
@@ -233,4 +258,9 @@ if __name__ == '__main__':
     logger.info("\nKCI medio por algoritmo:")
     resumen = df.groupby('algoritmo')['kci'].agg(['mean', 'std']).round(4)
     logger.info("\n%s", resumen.to_string())
+
+    logger.info("\nPrecisión robusta (features relevantes en ≥80%% de bootstraps):")
+    prec = df.groupby('algoritmo')['precision_robusta_80pct'].agg(['mean', 'std']).round(4)
+    logger.info("\n%s", prec.to_string())
+
     logger.info("Experimento 09 completado en %.1f min", (time.time() - t0) / 60)

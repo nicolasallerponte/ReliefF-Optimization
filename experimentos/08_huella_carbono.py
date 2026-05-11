@@ -108,11 +108,27 @@ def medir_emisiones(selector, X, y):
 
 
 def crear_selector(algoritmo, semilla):
+    n_sel = CFG['experimento']['n_features_seleccionadas']
     if algoritmo == 'ReliefF':
-        return ReliefF(n_features_to_select=10, n_neighbors=10)
+        return ReliefF(n_features_to_select=n_sel, n_neighbors=CFG['relieff']['n_neighbors'])
     if algoritmo == 'ANN':
-        return ANN(n_features_to_select=10, random_state=semilla)
-    return Proto(n_features_to_select=10, n_jobs=1)
+        return ANN(
+            n_features_to_select=n_sel,
+            n_neighbors=CFG['ann']['n_neighbors'],
+            metric=CFG['ann']['metric'],
+            M=CFG['ann']['M'],
+            ef_construction=CFG['ann']['ef_construction'],
+            ef_search=CFG['ann']['ef_search'],
+            random_state=semilla,
+        )
+    return Proto(
+        n_features_to_select=n_sel,
+        k_protos=CFG['proto']['k_protos'],
+        sigma=CFG['proto']['sigma'],
+        use_lvq=CFG['proto']['use_lvq'],
+        metric=CFG['proto']['metric'],
+        n_jobs=1,
+    )
 
 
 # ---------------------------------------------------------------------------

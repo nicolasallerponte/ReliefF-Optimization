@@ -86,6 +86,18 @@ CATALOGO = {
         'origen':      'sintético',
         'relevantes':  list(range(20)),
     },
+
+    # --- Datasets reales a gran escala (no incluidos en obtener_todos) ---
+    'CoverType_10k': {
+        'descripcion': 'Forest Cover Type (UCI/sklearn), clase 1 vs resto, 10000 muestras, 54 features',
+        'origen':      'sklearn-fetch',
+        'relevantes':  None,
+    },
+    'MNIST_10k': {
+        'descripcion': 'MNIST (LeCun), dígito 0 vs resto, 10000 muestras, 784 features',
+        'origen':      'openml',
+        'relevantes':  None,
+    },
 }
 
 
@@ -176,6 +188,24 @@ def obtener_dataset(nombre: str, semilla: int = 42):
         )
         X = X.astype(np.float32)
         y = y.astype(np.int32)
+
+    elif nombre == 'CoverType_10k':
+        from sklearn.datasets import fetch_covtype
+        datos = fetch_covtype(as_frame=False)
+        X_full = datos.data.astype(np.float32)
+        y_full = (datos.target == 1).astype(np.int32)   # clase 1 vs resto (binario)
+        rng_sel = np.random.RandomState(semilla)
+        idx = rng_sel.choice(len(X_full), 10000, replace=False)
+        X, y = X_full[idx], y_full[idx]
+
+    elif nombre == 'MNIST_10k':
+        from sklearn.datasets import fetch_openml
+        datos = fetch_openml('mnist_784', version=1, as_frame=False, parser='auto')
+        X_full = datos.data.astype(np.float32)
+        y_full = (datos.target.astype(int) == 0).astype(np.int32)  # dígito 0 vs resto
+        rng_sel = np.random.RandomState(semilla)
+        idx = rng_sel.choice(len(X_full), 10000, replace=False)
+        X, y = X_full[idx], y_full[idx]
 
     else:
         raise NotImplementedError(f"Cargador no implementado para '{nombre}'")

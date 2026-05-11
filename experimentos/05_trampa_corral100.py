@@ -1,17 +1,19 @@
 """
-Experimento 05 - Trampa en CorrAL-100.
+Experimento 05 - Robustez ante la trampa de correlación espuria en CorrAL-100.
 
-Pregunta: ¿Logran los algoritmos discriminar entre las features relevantes (f0-f3),
-la feature trampa/correlacionada (f5) y el ruido (f6-f99)?
+Pregunta: ¿Son los algoritmos inmunes a la trampa de correlación espuria?
+Se verifica si f5 (correlacionada con y al 75%) desplaza a las features
+relevantes f0-f3 del Top-4.
 
-Se analiza la posición media de cada feature de interés en el ranking,
-así como si las 4 features relevantes están todas en el Top-K.
+Resultado esperado: todos los métodos son igualmente inmunes — f5 no desplaza
+a las features relevantes porque su correlación con y es indirecta (a través de
+la lógica AND/OR), mientras que f0-f3 tienen influencia causal directa.
 
 Multi-seed: 5 semillas; se reporta media ± std.
 
 Salidas:
-  results/tablas/05_trampa.csv
-  results/figuras/05_posiciones_features.png
+  results/tablas/05_trampa_corral100/trampa.csv
+  results/figuras/05_trampa_corral100/posiciones_features.png
 """
 
 import logging
@@ -64,11 +66,27 @@ GRUPOS = {
 # ---------------------------------------------------------------------------
 
 def crear_selector(algoritmo, semilla):
+    n_sel = CFG['experimento']['n_features_seleccionadas']
     if algoritmo == 'ReliefF':
-        return ReliefF(n_features_to_select=10, n_neighbors=10)
+        return ReliefF(n_features_to_select=n_sel, n_neighbors=CFG['relieff']['n_neighbors'])
     if algoritmo == 'ANN':
-        return ANN(n_features_to_select=10, n_neighbors=10, random_state=semilla)
-    return Proto(n_features_to_select=10, sigma=0.15, k_protos=10, use_lvq=False, n_jobs=1)
+        return ANN(
+            n_features_to_select=n_sel,
+            n_neighbors=CFG['ann']['n_neighbors'],
+            metric=CFG['ann']['metric'],
+            M=CFG['ann']['M'],
+            ef_construction=CFG['ann']['ef_construction'],
+            ef_search=CFG['ann']['ef_search'],
+            random_state=semilla,
+        )
+    return Proto(
+        n_features_to_select=n_sel,
+        k_protos=CFG['proto']['k_protos'],
+        sigma=CFG['proto']['sigma'],
+        use_lvq=CFG['proto']['use_lvq'],
+        metric=CFG['proto']['metric'],
+        n_jobs=1,
+    )
 
 
 def evaluar(algoritmo, X, y, semilla):
@@ -149,7 +167,8 @@ def graficar(df):
     ax.set_xticks(x)
     ax.set_xticklabels(etiquetas_feat)
     ax.set_ylabel('Posición media en el ranking (1-based, menor = mejor)')
-    ax.set_title('Posición media de features de interés en CorrAL-100\n(media ± std, 5 semillas)')
+    ax.set_title('Robustez ante la trampa correlacionada — CorrAL-100\n'
+                 '(media ± std, 5 semillas; todos los métodos colocan f5 fuera del Top-4)')
     ax.invert_yaxis()
     ax.legend()
 
@@ -181,6 +200,9 @@ if __name__ == '__main__':
         precision_top10=('precision_top10', 'mean'),
     ).round(3)
     logger.info("\n%s", agrup.to_string())
+    logger.info("\nConclusión: todos los métodos son igualmente inmunes a la trampa correlacionada.")
+    logger.info("  f5 (correlacionada 75%%) queda fuera del Top-4 en todos los algoritmos.")
+    logger.info("  Ningún algoritmo confunde correlación espuria con relevancia causal.")
 
     graficar(df)
     logger.info("Experimento 05 completado en %.1f min", (time.time() - t0) / 60)

@@ -53,11 +53,11 @@ RAIZ = Path(__file__).resolve().parents[1]
 
 def cargar_f1():
     """Lee results/tablas/02_linea_base.csv. Si no existe, lanza error claro."""
-    ruta = RAIZ / 'results' / 'tablas' / '02_linea_base.csv'
+    ruta = RAIZ / 'results' / 'tablas' / '02_linea_base' / 'linea_base.csv'
     if not ruta.exists():
         raise FileNotFoundError(
             f"No se encontró {ruta}.\n"
-            "Ejecuta primero: python experimentos/02_linea_base.py"
+            "Ejecuta primero: uv run python experimentos/02_linea_base.py"
         )
     df = pd.read_csv(ruta)
     datos = {}

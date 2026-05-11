@@ -8,9 +8,13 @@ Método: CorrAL-100; se calcula la correlación de Spearman entre los pesos
 obtenidos con iter_ratio=r y los pesos obtenidos con iter_ratio=1.0 (referencia).
 Se evalúa r ∈ [0.05, 1.0] con 5 semillas.
 
+NOTA: Ambos modelos usan force_exact=True para aislar el efecto del subsampling
+de la estocasticidad propia del índice HNSW (que introduce varianza adicional
+incluso entre dos ejecuciones con iter_ratio=1.0).
+
 Salidas:
-  results/tablas/07_iter_ratio.csv
-  results/figuras/07_convergencia.png
+  results/tablas/07_convergencia_iter_ratio/iter_ratio.csv
+  results/figuras/07_convergencia_iter_ratio/convergencia.png
 """
 
 import logging
@@ -34,7 +38,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 from relieff_opt import ANN
 from relieff_opt.utils.conjuntos import _generar_corral100
 from relieff_opt.utils.paleta import (
-    COLORES, nueva_figura, guardar_figura,
+    COLORES, GROSOR_LINEA, nueva_figura, guardar_figura,
 )
 from relieff_opt.utils.experimento import guardar_tabla
 
@@ -55,12 +59,23 @@ RATIOS     = np.round(np.linspace(0.05, 1.0, 20), 3)
 # ---------------------------------------------------------------------------
 
 def evaluar_ratio(X, y, ratio, semilla):
-    """Devuelve correlación de Spearman con los pesos completos (ratio=1.0)."""
-    modelo_ref = ANN(n_features_to_select=10, iter_ratio=1.0, random_state=semilla)
+    """Correlación Spearman entre pesos con iter_ratio=ratio vs iter_ratio=1.0.
+
+    force_exact=True en ambos modelos para eliminar la estocasticidad HNSW
+    y medir solo el efecto del subsampling.
+    """
+    params_base = dict(
+        n_features_to_select=CFG['experimento']['n_features_seleccionadas'],
+        n_neighbors=CFG['ann']['n_neighbors'],
+        metric=CFG['ann']['metric'],
+        force_exact=True,   # búsqueda exacta: aísla iter_ratio del ruido HNSW
+        random_state=semilla,
+    )
+    modelo_ref = ANN(iter_ratio=1.0, **params_base)
     modelo_ref.fit(X, y)
     pesos_ref = modelo_ref.feature_importances_
 
-    modelo = ANN(n_features_to_select=10, iter_ratio=ratio, random_state=semilla)
+    modelo = ANN(iter_ratio=ratio, **params_base)
     modelo.fit(X, y)
     pesos = modelo.feature_importances_
 
@@ -94,7 +109,7 @@ def graficar(df):
 
     fig, ax = nueva_figura()
     ax.plot(agrup['iter_ratio'], agrup['media'],
-            color=COLORES['ANN'], linewidth=GROSOR_LINEA := 2.0,
+            color=COLORES['ANN'], linewidth=GROSOR_LINEA,
             marker='o', markersize=5, label='ANN (correlación con ratio=1.0)')
     ax.fill_between(
         agrup['iter_ratio'],
@@ -109,7 +124,8 @@ def graficar(df):
 
     ax.set_xlabel('iter_ratio (fracción de muestras usadas como query)')
     ax.set_ylabel('Correlación de Spearman con pesos completos (media ± std)')
-    ax.set_title('Convergencia de los pesos ANN según iter_ratio\n(5 semillas, CorrAL-100)')
+    ax.set_title('Convergencia de los pesos ANN según iter_ratio\n'
+                 '(búsqueda exacta; 5 semillas, CorrAL-100)')
     ax.set_xlim(0, 1.05)
     ax.set_ylim(0, 1.05)
     ax.legend()

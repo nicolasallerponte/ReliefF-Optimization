@@ -70,13 +70,16 @@ def crear_selectores(n_sel, semilla):
             n_neighbors=CFG['ann']['n_neighbors'],
             metric=CFG['ann']['metric'],
             iter_ratio=CFG['ann']['iter_ratio'],
+            M=CFG['ann']['M'],
+            ef_construction=CFG['ann']['ef_construction'],
+            ef_search=CFG['ann']['ef_search'],
             random_state=semilla,
         ),
         'Proto': Proto(
             n_features_to_select=n_sel,
-            k_protos=CFG['proto']['k_prototipos'],
+            k_protos=CFG['proto']['k_protos'],
             sigma=CFG['proto']['sigma'],
-            use_lvq=CFG['proto']['usar_lvq'],
+            use_lvq=CFG['proto']['use_lvq'],
             metric=CFG['proto']['metric'],
             n_jobs=1,
         ),
@@ -169,6 +172,89 @@ def ejecutar():
 
 
 # ---------------------------------------------------------------------------
+# Evaluación en dataset real grande (CoverType_10k)
+# ---------------------------------------------------------------------------
+
+def evaluar_grande():
+    """3-fold CV × 3 semillas en CoverType_10k (n=10000, d=54).
+
+    Valida que la calidad F1 de ANN es equivalente a ReliefF en un dataset
+    real de n=10000, no solo en los 12 datasets sintéticos/pequeños.
+    """
+    from relieff_opt.utils.conjuntos import obtener_dataset
+    logger.info("=== Calidad en dataset real grande (CoverType_10k) ===")
+    try:
+        X, y, _ = obtener_dataset('CoverType_10k', semilla=42)
+        logger.info("  CoverType_10k: %s, balance=%.2f", X.shape, y.mean())
+    except Exception as e:
+        logger.warning("No se pudo cargar CoverType_10k: %s", e)
+        return None
+
+    n_sel = min(N_SEL, X.shape[1])
+    semillas_grandes  = SEMILLAS[:3]   # 3 semillas para que sea viable en tiempo
+    n_pliegues_grandes = 3             # 3-fold (vs 5-fold habitual)
+
+    filas = []
+    for algoritmo in ['ReliefF', 'ANN', 'Proto']:
+        f1s = []
+        logger.info("  Algoritmo: %s", algoritmo)
+        for semilla in semillas_grandes:
+            selectores = crear_selectores(n_sel, semilla)
+            skf = StratifiedKFold(
+                n_splits=n_pliegues_grandes, shuffle=True, random_state=semilla
+            )
+            for idx_tr, idx_te in skf.split(X, y):
+                Xtr, Xte = X[idx_tr], X[idx_te]
+                ytr, yte = y[idx_tr], y[idx_te]
+                sc = StandardScaler()
+                Xtr = sc.fit_transform(Xtr)
+                Xte = sc.transform(Xte)
+                try:
+                    sel = selectores[algoritmo]
+                    sel.fit(Xtr, ytr)
+                    Xtr_s = sel.transform(Xtr)
+                    Xte_s = sel.transform(Xte)
+                    clf = RandomForestClassifier(
+                        n_estimators=CFG['experimento']['rf_n_estimators'],
+                        max_depth=CFG['experimento']['rf_max_depth'],
+                        random_state=semilla, n_jobs=1,
+                    )
+                    clf.fit(Xtr_s, ytr)
+                    f1s.append(f1_score(yte, clf.predict(Xte_s), average='binary'))
+                except Exception as e:
+                    logger.warning("    Error %s semilla=%d: %s", algoritmo, semilla, e)
+                    f1s.append(0.0)
+        f1_media = round(float(np.mean(f1s)), 4)
+        f1_std   = round(float(np.std(f1s, ddof=1)), 4)
+        filas.append({
+            'dataset':    'CoverType_10k',
+            'algoritmo':  algoritmo,
+            'n_features': X.shape[1],
+            'n_sel':      n_sel,
+            'f1_media':   f1_media,
+            'f1_std':     f1_std,
+        })
+        logger.info("    → %.4f ± %.4f", f1_media, f1_std)
+
+    df_real = pd.DataFrame(filas)
+    guardar_tabla(df_real, 'linea_base_real', TAB_DIR)
+
+    fig, ax = nueva_figura()
+    x = np.arange(len(df_real))
+    colores_bar = [COLORES.get(a, '#888888') for a in df_real['algoritmo']]
+    ax.bar(x, df_real['f1_media'], color=colores_bar, alpha=0.85,
+           yerr=df_real['f1_std'], capsize=4)
+    ax.set_xticks(x)
+    ax.set_xticklabels(df_real['algoritmo'])
+    ax.set_ylabel('F1 (media ± std, 3-fold CV × 3 semillas)')
+    ax.set_ylim(bottom=max(0, df_real['f1_media'].min() - 0.05))
+    ax.set_title('Calidad F1 en dataset real grande\n(CoverType, n=10000, d=54)')
+    guardar_figura(fig, 'comparacion_real', FIG_DIR)
+    logger.info("Tabla y figura linea_base_real guardadas")
+    return df_real
+
+
+# ---------------------------------------------------------------------------
 # Gráfica
 # ---------------------------------------------------------------------------
 
@@ -216,4 +302,6 @@ if __name__ == '__main__':
     t0 = time.time()
     df = ejecutar()
     graficar(df)
+    logger.info("Iniciando evaluación en dataset real grande (CoverType_10k)...")
+    evaluar_grande()
     logger.info("Experimento 02 completado en %.1f min", (time.time() - t0) / 60)

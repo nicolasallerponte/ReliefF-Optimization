@@ -59,6 +59,13 @@ N_REPLICAS = 50              # réplicas de CorrAL-100 por semilla
 NIVELES    = np.linspace(0, 0.30, 11)
 ALGORITMOS = ['ReliefF', 'ANN', 'Proto']
 
+# Configuración de presentación por tipo de perturbación.
+# _XLIM_GRAFICA: a partir de qué nivel se corta el eje x (evitar colas extremas).
+# _YLIM_RANKING_MAX: rango del eje y del ranking medio; un rango más amplio evita
+# que diferencias de 1 posición parezcan exageradas.
+_XLIM_GRAFICA     = {'gaussiano': 0.25, 'etiquetas': 0.25, 'features': 0.25, 'missing': 0.30}
+_YLIM_RANKING_MAX = {'missing': 8}
+
 # Features a evaluar en CorrAL-100
 RELEVANTES = [0, 1, 2, 3]
 OBJETIVO   = [0, 1, 2, 3, 5]   # 4 relevantes + correlacionada
@@ -116,12 +123,28 @@ PERTURBACIONES = {
 # ---------------------------------------------------------------------------
 
 def crear_selector(algoritmo, semilla):
+    n_sel = CFG['experimento']['n_features_seleccionadas']
     if algoritmo == 'ReliefF':
-        return ReliefF(n_features_to_select=10, n_neighbors=10)
+        return ReliefF(n_features_to_select=n_sel, n_neighbors=CFG['relieff']['n_neighbors'])
     if algoritmo == 'ANN':
-        return ANN(n_features_to_select=10, n_neighbors=10, random_state=semilla)
+        return ANN(
+            n_features_to_select=n_sel,
+            n_neighbors=CFG['ann']['n_neighbors'],
+            metric=CFG['ann']['metric'],
+            M=CFG['ann']['M'],
+            ef_construction=CFG['ann']['ef_construction'],
+            ef_search=CFG['ann']['ef_search'],
+            random_state=semilla,
+        )
     if algoritmo == 'Proto':
-        return Proto(n_features_to_select=10, sigma=0.15, k_protos=10, use_lvq=False, n_jobs=1)
+        return Proto(
+            n_features_to_select=n_sel,
+            k_protos=CFG['proto']['k_protos'],
+            sigma=CFG['proto']['sigma'],
+            use_lvq=CFG['proto']['use_lvq'],
+            metric=CFG['proto']['metric'],
+            n_jobs=1,
+        )
     raise ValueError(f"Algoritmo desconocido: {algoritmo}")
 
 
@@ -186,7 +209,8 @@ def ejecutar():
 
 def graficar_robustez(df):
     for tipo in df['tipo'].unique():
-        sub = df[df['tipo'] == tipo]
+        xlim_max = _XLIM_GRAFICA.get(tipo, 0.30)
+        sub = df[(df['tipo'] == tipo) & (df['nivel'] <= xlim_max)]
         agrup = sub.groupby(['nivel', 'algoritmo']).agg(
             score_media=('score_top5', 'mean'),
             score_std=('score_top5', 'std'),
@@ -229,6 +253,9 @@ def graficar_robustez(df):
         ax2.set_xlabel('Nivel de ruido')
         ax2.set_ylabel('Posición media features relevantes (1-based)')
         ax2.set_title(f'Ranking de features relevantes\nante ruido {tipo_es.get(tipo, tipo)}')
+        ylim_rank_max = _YLIM_RANKING_MAX.get(tipo, None)
+        if ylim_rank_max is not None:
+            ax2.set_ylim(0.5, ylim_rank_max)
         ax2.invert_yaxis()
         ax2.legend()
 

@@ -102,18 +102,24 @@ def ejecutar():
             X = X.astype(np.float32)
             y = y.astype(np.int32)
 
-            for nombre, params in [
-                ('ANN_hnsw',   {'force_exact': False}),
-                ('ANN_exacto', {'force_exact': True}),
-            ]:
-                modelo = ANN(n_features_to_select=10, random_state=semilla, **params)
+            params_base = dict(
+                n_features_to_select=CFG['experimento']['n_features_seleccionadas'],
+                n_neighbors=CFG['ann']['n_neighbors'],
+                metric=CFG['ann']['metric'],
+                M=CFG['ann']['M'],
+                ef_construction=CFG['ann']['ef_construction'],
+                ef_search=CFG['ann']['ef_search'],
+                random_state=semilla,
+            )
+            for nombre, force_exact in [('ANN_hnsw', False), ('ANN_exacto', True)]:
+                modelo = ANN(force_exact=force_exact, **params_base)
 
                 t0 = time.perf_counter()
                 modelo.fit(X, y)
                 tiempo = time.perf_counter() - t0
 
                 f1 = _f1_cv(
-                    ANN(n_features_to_select=10, random_state=semilla, **params),
+                    ANN(force_exact=force_exact, **params_base),
                     X, y, semilla,
                 )
 
