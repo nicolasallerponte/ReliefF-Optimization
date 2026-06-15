@@ -98,6 +98,23 @@ CATALOGO = {
         'origen':      'openml',
         'relevantes':  None,
     },
+
+    # --- Datasets reales masivos (validación de escalabilidad al límite) ---
+    'CoverType': {
+        'descripcion': 'Forest Cover Type completo, clase 1 vs resto, 581012 muestras, 54 features',
+        'origen':      'sklearn-fetch',
+        'relevantes':  None,
+    },
+    'SUSY': {
+        'descripcion': 'SUSY (física de partículas), binario, ~5M muestras, 18 features',
+        'origen':      'openml',
+        'relevantes':  None,
+    },
+    'HIGGS': {
+        'descripcion': 'HIGGS (física de partículas), binario, ~11M muestras, 28 features',
+        'origen':      'openml',
+        'relevantes':  None,
+    },
 }
 
 
@@ -206,6 +223,24 @@ def obtener_dataset(nombre: str, semilla: int = 42):
         rng_sel = np.random.RandomState(semilla)
         idx = rng_sel.choice(len(X_full), 10000, replace=False)
         X, y = X_full[idx], y_full[idx]
+
+    elif nombre == 'CoverType':
+        from sklearn.datasets import fetch_covtype
+        datos = fetch_covtype(as_frame=False)
+        X = datos.data.astype(np.float32)
+        y = (datos.target == 1).astype(np.int32)   # clase 1 vs resto (binario)
+
+    elif nombre == 'SUSY':
+        from sklearn.datasets import fetch_openml
+        datos = fetch_openml('SUSY', version=1, as_frame=False, parser='auto')
+        X = datos.data.astype(np.float32)
+        y = np.asarray(datos.target).astype(float).astype(np.int32)
+
+    elif nombre == 'HIGGS':
+        from sklearn.datasets import fetch_openml
+        datos = fetch_openml('higgs', version=2, as_frame=False, parser='auto')
+        X = np.nan_to_num(datos.data.astype(np.float32))
+        y = np.asarray(datos.target).astype(float).astype(np.int32)
 
     else:
         raise NotImplementedError(f"Cargador no implementado para '{nombre}'")
