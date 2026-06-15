@@ -326,9 +326,7 @@ if __name__ == '__main__':
     t0 = time.time()
     df = ejecutar()
     graficar(df)
-    logger.info("Benchmark sintético completado.")
-    logger.info("Iniciando benchmark real (CoverType_10k)...")
-    ejecutar_real()
-    logger.info("Iniciando benchmark real MNIST_10k (alta dimensión, d=784)...")
-    ejecutar_real_mnist()
+    # Los benchmarks reales se cubren en experimentos/15_escala_real.py
+    # (CoverType completo, SUSY, HIGGS). Las funciones ejecutar_real() y
+    # ejecutar_real_mnist() se conservan definidas pero ya no se invocan.
     logger.info("Experimento 04 completado en %.1f min", (time.time() - t0) / 60)
