@@ -107,12 +107,22 @@ CATALOGO = {
     },
     'SUSY': {
         'descripcion': 'SUSY (física de partículas), binario, ~5M muestras, 18 features',
-        'origen':      'openml',
+        'origen':      'uci',
         'relevantes':  None,
     },
     'HIGGS': {
         'descripcion': 'HIGGS (física de partículas), binario, ~11M muestras, 28 features',
         'origen':      'openml',
+        'relevantes':  None,
+    },
+    'KDDCup99': {
+        'descripcion': 'KDD Cup 99 (intrusión de red), normal vs ataque, ~4.9M muestras, 41 features (121 tras one-hot)',
+        'origen':      'openml',
+        'relevantes':  None,
+    },
+    'HEPMASS': {
+        'descripcion': 'HEPMASS (física de partículas), binario, ~10.5M muestras, 28 features',
+        'origen':      'uci',
         'relevantes':  None,
     },
 }
@@ -231,16 +241,70 @@ def obtener_dataset(nombre: str, semilla: int = 42):
         y = (datos.target == 1).astype(np.int32)   # clase 1 vs resto (binario)
 
     elif nombre == 'SUSY':
-        from sklearn.datasets import fetch_openml
-        datos = fetch_openml('SUSY', version=1, as_frame=False, parser='auto')
-        X = datos.data.astype(np.float32)
-        y = np.asarray(datos.target).astype(float).astype(np.int32)
+        # OpenML no tiene SUSY; se descarga de UCI #279 (5M x 18) y se cachea.
+        # CSV.gz sin cabecera: col 0 = etiqueta (0/1), cols 1-18 = features.
+        import urllib.request
+        import pandas as pd
+        from pathlib import Path
+        from sklearn.datasets import get_data_home
+        cache = Path(get_data_home()) / 'susy'
+        cache.mkdir(parents=True, exist_ok=True)
+        gz = cache / 'SUSY.csv.gz'
+        if not gz.exists():
+            url = 'https://archive.ics.uci.edu/ml/machine-learning-databases/00279/SUSY.csv.gz'
+            tmp = gz.with_suffix('.part')
+            urllib.request.urlretrieve(url, tmp)
+            tmp.rename(gz)   # rename solo si la descarga completó (evita caché corrupta)
+        datos = pd.read_csv(gz, header=None, dtype=np.float32)
+        y = datos.iloc[:, 0].to_numpy().astype(np.int32)
+        X = datos.iloc[:, 1:].to_numpy().astype(np.float32)
+        del datos
 
     elif nombre == 'HIGGS':
         from sklearn.datasets import fetch_openml
-        datos = fetch_openml('higgs', version=2, as_frame=False, parser='auto')
+        datos = fetch_openml(data_id=45570, as_frame=False, parser='auto')  # HIGGS completo: 11M x 28
         X = np.nan_to_num(datos.data.astype(np.float32))
         y = np.asarray(datos.target).astype(float).astype(np.int32)
+
+    elif nombre == 'KDDCup99':
+        # KDD Cup 99 completo (4.9M x 41) desde OpenML (data_id=42746).
+        # Objetivo binario: normal (0) vs ataque (1). Las 3 columnas categóricas
+        # (protocol_type, service, flag) se codifican one-hot -> 121 features.
+        import pandas as pd
+        from sklearn.datasets import fetch_openml
+        datos = fetch_openml(data_id=42746, as_frame=True, parser='auto')
+        df = datos.frame
+        target_col = datos.target.name
+        y = (~df[target_col].astype(str).str.contains('normal')).astype(np.int32).to_numpy()
+        X_df = pd.get_dummies(df.drop(columns=[target_col]), dummy_na=False)
+        del df
+        X = X_df.to_numpy(dtype=np.float32)
+        del X_df
+
+    elif nombre == 'HEPMASS':
+        # HEPMASS completo (10.5M x 28) desde UCI #347: all_train.csv.gz (7M) +
+        # all_test.csv.gz (3.5M), concatenados y cacheados. Col 0 = '# label'
+        # (0/1), cols 1-28 = features (f0..f26 + mass). Binario y balanceado.
+        import urllib.request
+        import pandas as pd
+        from pathlib import Path
+        from sklearn.datasets import get_data_home
+        cache = Path(get_data_home()) / 'hepmass'
+        cache.mkdir(parents=True, exist_ok=True)
+        base = 'https://archive.ics.uci.edu/ml/machine-learning-databases/00347/'
+        partes = []
+        for fichero in ('all_train.csv.gz', 'all_test.csv.gz'):
+            gz = cache / fichero
+            if not gz.exists():
+                tmp = gz.with_suffix('.part')
+                urllib.request.urlretrieve(base + fichero, tmp)
+                tmp.rename(gz)   # rename solo si completó (evita caché corrupta)
+            partes.append(pd.read_csv(gz, dtype=np.float32))
+        datos = pd.concat(partes, ignore_index=True)
+        del partes
+        y = datos.iloc[:, 0].to_numpy().astype(np.int32)
+        X = datos.iloc[:, 1:].to_numpy().astype(np.float32)
+        del datos
 
     else:
         raise NotImplementedError(f"Cargador no implementado para '{nombre}'")

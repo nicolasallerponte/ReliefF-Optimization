@@ -5,9 +5,9 @@ Pregunta: ¿Cómo escala el tiempo de ejecución de cada algoritmo con el tamañ
 del dataset? ¿ANN rompe la complejidad O(n²) de ReliefF original?
 
 Método: dataset sintético clasificación binaria, n_features=30, n_informative=20.
-Se varía n_muestras de 500 a 10 000 000. Para cada tamaño × semilla se mide el
-tiempo de fit().  Régimen pequeño/medio (n <= 100 000): 5 semillas, media ± std.
-Régimen gigante (n >= 1 000 000): 1 semilla, demostración de viabilidad.
+Se varía n_muestras de 500 a 10 000 000. Para cada tamaño se mide el tiempo de
+fit() con una única semilla: el tiempo es prácticamente determinista y el
+objetivo es la tendencia de escala (el exponente), no la varianza entre semillas.
 ReliefF/MultiSURF solo hasta n = 10 000 (O(n²) inviable por encima).
 
 Salidas:
@@ -58,16 +58,14 @@ TAMANOS = [500, 1000, 2000, 3000, 5000, 8000, 10000, 15000, 20000, 30000,
 # ReliefF y MultiSURF son O(n²) — inviables a gran escala.
 # Por encima de este umbral solo se miden ANN y Proto.
 N_MAX_CUADRATICO = 10000
-# Por encima de este umbral basta una semilla: el tiempo a esta escala es
-# demostración de viabilidad, no de varianza (cada fit puede tardar ~horas).
-N_MAX_MULTISEMILLA = 100000
 N_FEATURES = 30
 N_INFORMATIVE = 20
 
 
 def semillas_para(n):
-    """5 semillas en el régimen pequeño/medio; 1 en el gigante."""
-    return SEMILLAS if n <= N_MAX_MULTISEMILLA else SEMILLAS[:1]
+    """Una sola semilla en todos los tamaños: el tiempo de fit() es casi
+    determinista, así que medimos la tendencia de escala, no la varianza."""
+    return SEMILLAS[:1]
 
 
 # ---------------------------------------------------------------------------
@@ -160,7 +158,6 @@ def _ajuste_potencia(x, y):
 def graficar(df):
     agrup = df.groupby(['n_muestras', 'algoritmo']).agg(
         media=('tiempo_s', 'mean'),
-        std=('tiempo_s', 'std'),
     ).reset_index()
 
     # Escala lineal
@@ -171,12 +168,8 @@ def graficar(df):
                 color=COLORES[alg], marker=MARCADORES[alg],
                 linestyle=ESTILOS_LINEA[alg], linewidth=GROSOR_LINEA,
                 markersize=5, label=alg)
-        ax.fill_between(datos['n_muestras'],
-                        datos['media'] - datos['std'],
-                        datos['media'] + datos['std'],
-                        color=COLORES[alg], alpha=0.15)
     ax.set_xlabel('Número de muestras')
-    ax.set_ylabel('Tiempo de fit() [s] (media ± std, 5 semillas)')
+    ax.set_ylabel('Tiempo de fit() [s] (1 semilla)')
     ax.set_title('Escalabilidad temporal')
     ax.legend()
     guardar_figura(fig, 'tiempo_lineal', FIG_DIR)
