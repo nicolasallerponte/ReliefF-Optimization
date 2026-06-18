@@ -8,7 +8,7 @@ propuestas añaden fragilidad respecto al método exacto.
 
 Método: sobre CorrAL-100 (ground truth conocido: 4 variables causales, 1
 correlada y 95 de ruido) se invierte una fracción creciente de etiquetas, hasta
-el 25\%, y se ajustan los tres algoritmos
+el 25%, y se ajustan los tres algoritmos
 sobre los MISMOS datos ruidosos. Para cada nivel × semilla se mide:
   - recuperación = fracción de variables relevantes reales que caen en el top-k.
   - delta = recuperación de la propuesta menos la de ReliefF (degradación relativa).
