@@ -54,7 +54,7 @@ SEMILLAS = [42, 123, 456, 789, 1234]
 
 # Conjuntos de tamaño pequeño/medio de la comparación de calidad.
 DATASETS = [
-    'Breast_Cancer', 'Wine', 'Digits', 'Corral', 'CorrAL100', 'XOR',
+    'Breast_Cancer', 'Wine', 'Digits', 'Corral', 'XOR',
     'Moons', 'Circles', 'AltaDim', 'Desbalanceado', 'Ruidoso', 'Grande',
 ]
 
