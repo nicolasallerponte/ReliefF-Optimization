@@ -6,8 +6,9 @@ Proto-ReliefF MÁS rápido que ReliefF, o al mismo ritmo? Lo que importa no es l
 degradación absoluta (todos los selectores empeoran con el ruido), sino si las
 propuestas añaden fragilidad respecto al método exacto.
 
-Método: sobre conjuntos con ground truth conocido (AltaDim y CorrAL-100), se
-invierte una fracción creciente de etiquetas y se ajustan los tres algoritmos
+Método: sobre CorrAL-100 (ground truth conocido: 4 variables causales, 1
+correlada y 95 de ruido) se invierte una fracción creciente de etiquetas, hasta
+el 25\%, y se ajustan los tres algoritmos
 sobre los MISMOS datos ruidosos. Para cada nivel × semilla se mide:
   - recuperación = fracción de variables relevantes reales que caen en el top-k.
   - delta = recuperación de la propuesta menos la de ReliefF (degradación relativa).
@@ -50,8 +51,8 @@ TAB_DIR = 'tablas/17_robustez_ruido'
 
 N_SEL    = CFG['experimento']['n_features_seleccionadas']
 SEMILLAS = [42, 123, 456, 789, 1234]
-NIVELES  = [0.0, 0.05, 0.10, 0.15, 0.20, 0.30]
-DATASETS = ['AltaDim', 'CorrAL100']
+NIVELES  = [0.0, 0.05, 0.10, 0.15, 0.20, 0.25]
+DATASETS = ['CorrAL100']
 
 ALGORITMOS = ['ReliefF', 'ANN', 'Proto']
 ETIQUETA   = {'ReliefF': 'ReliefF', 'ANN': 'HNSW-ReliefF', 'Proto': 'Proto-ReliefF'}
@@ -153,7 +154,7 @@ def graficar(agg):
     x = [n * 100 for n in niveles_pct]
 
     # --- Figura clave: delta vs ReliefF ---
-    fig, axes = plt.subplots(1, len(DATASETS), figsize=(11, 4.2), sharey=True)
+    fig, axes = plt.subplots(1, len(DATASETS), figsize=(5.8 * len(DATASETS) + 0.5, 4.4), sharey=True)
     if len(DATASETS) == 1:
         axes = [axes]
     for ax, nombre in zip(axes, DATASETS):
@@ -171,7 +172,7 @@ def graficar(agg):
     guardar_figura(fig, 'delta_recuperacion', FIG_DIR)
 
     # --- Figura de apoyo: recuperación absoluta (3 curvas) ---
-    fig2, axes2 = plt.subplots(1, len(DATASETS), figsize=(11, 4.2), sharey=True)
+    fig2, axes2 = plt.subplots(1, len(DATASETS), figsize=(5.8 * len(DATASETS) + 0.5, 4.4), sharey=True)
     if len(DATASETS) == 1:
         axes2 = [axes2]
     for ax, nombre in zip(axes2, DATASETS):
