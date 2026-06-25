@@ -159,14 +159,20 @@ class ANN(BaseEstimator, TransformerMixin):
                 ratio_iter = 0.8
             elif n < 20000:
                 ratio_iter = 0.5
-            else:
+            elif n < 100000:
                 ratio_iter = 0.3
+            else:
+                ratio_iter = 0.1   # régimen masivo: submuestreo agresivo de queries
         else:
             ratio_iter = self.iter_ratio
 
         usar_hnsw = not self.force_exact
         if usar_hnsw:
-            if n >= 100000:
+            if n >= 1000000:
+                M_final, ef_final = 48, 300
+            elif n >= 500000:
+                M_final, ef_final = 40, 250
+            elif n >= 100000:
                 M_final, ef_final = 32, 200
             elif n >= 50000:
                 M_final, ef_final = 24, 150

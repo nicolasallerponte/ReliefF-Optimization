@@ -57,7 +57,7 @@ FIG_DIR = 'figuras/11_crossover'
 TAB_DIR = 'tablas/11_crossover'
 
 SEMILLAS   = CFG['experimento']['semillas']
-TAMANOS    = [200, 500, 1000, 2000, 5000, 10000, 20000, 30000]
+TAMANOS    = [200, 500, 1000, 2000, 5000, 10000, 20000, 30000, 50000, 100000]
 N_FEATURES = 30
 N_INFORMATIVE = 20
 N_CV = 5

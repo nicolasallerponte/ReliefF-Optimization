@@ -5,8 +5,10 @@ Pregunta: ¿Cómo escala el tiempo de ejecución de cada algoritmo con el tamañ
 del dataset? ¿ANN rompe la complejidad O(n²) de ReliefF original?
 
 Método: dataset sintético clasificación binaria, n_features=30, n_informative=20.
-Se varía n_muestras de 500 a 30 000. Para cada tamaño × semilla se mide el
-tiempo de fit().  Multi-seed: 5 semillas; se reporta media ± std.
+Se varía n_muestras de 500 a 10 000 000. Para cada tamaño se mide el tiempo de
+fit() con una única semilla: el tiempo es prácticamente determinista y el
+objetivo es la tendencia de escala (el exponente), no la varianza entre semillas.
+ReliefF/MultiSURF solo hasta n = 10 000 (O(n²) inviable por encima).
 
 Salidas:
   results/tablas/04_escalabilidad.csv
@@ -50,13 +52,20 @@ TAB_DIR = 'tablas/04_escalabilidad'
 SEMILLAS   = CFG['experimento']['semillas']
 ALGORITMOS = ['ReliefF', 'MultiSURF', 'ANN', 'Proto']
 
-TAMANOS = [500, 1000, 2000, 3000, 5000, 8000, 10000, 15000, 20000, 30000]
+TAMANOS = [500, 1000, 2000, 3000, 5000, 8000, 10000, 15000, 20000, 30000,
+           50000, 100000, 500000, 1000000, 5000000, 10000000]
 
 # ReliefF y MultiSURF son O(n²) — inviables a gran escala.
 # Por encima de este umbral solo se miden ANN y Proto.
 N_MAX_CUADRATICO = 10000
 N_FEATURES = 30
 N_INFORMATIVE = 20
+
+
+def semillas_para(n):
+    """Una sola semilla en todos los tamaños: el tiempo de fit() es casi
+    determinista, así que medimos la tendencia de escala, no la varianza."""
+    return SEMILLAS[:1]
 
 
 # ---------------------------------------------------------------------------
@@ -94,15 +103,24 @@ def medir_tiempo(algoritmo, X, y, semilla):
 
 
 def ejecutar():
+    # Escritura incremental: cada fila se vuelca a disco según se obtiene, para
+    # no perder horas de cómputo si un fit a gran escala falla a mitad.
+    raw_path = Path(__file__).resolve().parents[1] / 'results' / TAB_DIR / 'escalabilidad_raw.csv'
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    columnas = ['n_muestras', 'algoritmo', 'semilla', 'tiempo_s']
+    pd.DataFrame(columns=columnas).to_csv(raw_path, index=False)
+
     filas = []
     for n in TAMANOS:
         # ReliefF y MultiSURF son O(n²): se omiten para n > N_MAX_CUADRATICO
         algs = ALGORITMOS if n <= N_MAX_CUADRATICO else ['ANN', 'Proto']
+        sems = semillas_para(n)
         if n > N_MAX_CUADRATICO:
-            logger.info("n_muestras=%d  (solo ANN y Proto — ReliefF/MultiSURF inviables a esta escala)", n)
+            logger.info("n_muestras=%d  (solo ANN y Proto; %d semilla(s); ~%.2f GB en X)",
+                        n, len(sems), n * N_FEATURES * 4 / 1e9)
         else:
-            logger.info("n_muestras=%d", n)
-        for semilla in SEMILLAS:
+            logger.info("n_muestras=%d  (%d semillas)", n, len(sems))
+        for semilla in sems:
             X, y = make_classification(
                 n_samples=n, n_features=N_FEATURES, n_informative=N_INFORMATIVE,
                 n_redundant=5, random_state=semilla,
@@ -111,12 +129,14 @@ def ejecutar():
             y = y.astype(np.int32)
             for alg in algs:
                 t = medir_tiempo(alg, X, y, semilla)
-                filas.append({
+                fila = {
                     'n_muestras': n,
                     'algoritmo':  alg,
                     'semilla':    semilla,
                     'tiempo_s':   round(t, 4),
-                })
+                }
+                filas.append(fila)
+                pd.DataFrame([fila]).to_csv(raw_path, mode='a', header=False, index=False)
 
     df = pd.DataFrame(filas)
     guardar_tabla(df, 'escalabilidad', TAB_DIR)
@@ -138,7 +158,6 @@ def _ajuste_potencia(x, y):
 def graficar(df):
     agrup = df.groupby(['n_muestras', 'algoritmo']).agg(
         media=('tiempo_s', 'mean'),
-        std=('tiempo_s', 'std'),
     ).reset_index()
 
     # Escala lineal
@@ -149,12 +168,8 @@ def graficar(df):
                 color=COLORES[alg], marker=MARCADORES[alg],
                 linestyle=ESTILOS_LINEA[alg], linewidth=GROSOR_LINEA,
                 markersize=5, label=alg)
-        ax.fill_between(datos['n_muestras'],
-                        datos['media'] - datos['std'],
-                        datos['media'] + datos['std'],
-                        color=COLORES[alg], alpha=0.15)
     ax.set_xlabel('Número de muestras')
-    ax.set_ylabel('Tiempo de fit() [s] (media ± std, 5 semillas)')
+    ax.set_ylabel('Tiempo de fit() [s] (1 semilla)')
     ax.set_title('Escalabilidad temporal')
     ax.legend()
     guardar_figura(fig, 'tiempo_lineal', FIG_DIR)
@@ -304,9 +319,7 @@ if __name__ == '__main__':
     t0 = time.time()
     df = ejecutar()
     graficar(df)
-    logger.info("Benchmark sintético completado.")
-    logger.info("Iniciando benchmark real (CoverType_10k)...")
-    ejecutar_real()
-    logger.info("Iniciando benchmark real MNIST_10k (alta dimensión, d=784)...")
-    ejecutar_real_mnist()
+    # Los benchmarks reales se cubren en experimentos/15_escala_real.py
+    # (CoverType completo, SUSY, HIGGS). Las funciones ejecutar_real() y
+    # ejecutar_real_mnist() se conservan definidas pero ya no se invocan.
     logger.info("Experimento 04 completado en %.1f min", (time.time() - t0) / 60)
